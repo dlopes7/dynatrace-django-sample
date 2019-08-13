@@ -1,4 +1,7 @@
+import functools
+
 import oneagent
+from django.db import connection
 
 
 class DynatraceQueryWrapper:
@@ -14,9 +17,9 @@ class DynatraceQueryWrapper:
 
         if self. db_info is None:
             self.db_info = self.sdk.create_database_info('Polls',
-                                                                   oneagent.sdk.DatabaseVendor.SQLITE,
-                                                                   oneagent.sdk.Channel(oneagent.sdk.ChannelType.TCP_IP,
-                                                                                        '127.0.0.1:6666'))
+                                                         oneagent.sdk.DatabaseVendor.SQLITE,
+                                                         oneagent.sdk.Channel(oneagent.sdk.ChannelType.TCP_IP,
+                                                         '127.0.0.1:6666'))
 
     def __call__(self, execute, sql, params, many, context):
         curremt_query = {'sql': sql, 'params': params, 'many': many}
@@ -31,3 +34,15 @@ class DynatraceQueryWrapper:
                 return result
 
 
+dt = DynatraceQueryWrapper()
+
+
+def dynatrace_instrumentation(function):
+
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        with oneagent.get_sdk().trace_custom_service(function.__name__, function.__name__):
+            with connection.execute_wrapper(dt):
+                return function(*args, **kwargs)
+
+    return wrapper

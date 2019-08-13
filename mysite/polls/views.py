@@ -1,44 +1,37 @@
-from django.db import connection
+
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
 from .models import Choice, Question
-from.dynatrace.wrapper import DynatraceQueryWrapper
-
-dt = DynatraceQueryWrapper()
+from.dynatrace.wrapper import dynatrace_instrumentation
 
 
-class IndexView(generic.ListView):
-    template_name = 'polls/index.html'
-    context_object_name = 'latest_question_list'
-
-    def get_queryset(self):
-        """Return the last five published questions."""
-
-        with connection.execute_wrapper(dt):
-            return Question.objects.order_by('-pub_date')[:5]
+@dynatrace_instrumentation
+def index(request):
+    latest_question_list = Question.objects.order_by('-pub_date')[:5]
+    context = {'latest_question_list': latest_question_list}
+    return render(request, 'polls/index.html', context)
 
 
-class DetailView(generic.DetailView):
-    with connection.execute_wrapper(dt):
-        model = Question
-        template_name = 'polls/detail.html'
+@dynatrace_instrumentation
+def detail(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    return render(request, 'polls/detail.html', {'question': question})
 
 
-class ResultsView(generic.DetailView):
-    with connection.execute_wrapper(dt):
-        model = Question
-        template_name = 'polls/results.html'
+@dynatrace_instrumentation
+def results(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    return render(request, 'polls/results.html', {'question': question})
 
 
+@dynatrace_instrumentation
 def vote(request, question_id):
-    with connection.execute_wrapper(dt):
-        question = get_object_or_404(Question, pk=question_id)
+    question = get_object_or_404(Question, pk=question_id)
     try:
-        with connection.execute_wrapper(dt):
-            selected_choice = question.choice_set.get(pk=request.POST['choice'])
+        selected_choice = question.choice_set.get(pk=request.POST['choice'])
     except (KeyError, Choice.DoesNotExist):
         # Redisplay the question voting form.
         return render(request, 'polls/detail.html', {
